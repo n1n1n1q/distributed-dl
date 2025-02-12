@@ -21,10 +21,15 @@ public:
       std::vector<uint8_t> buffer(record_size);
       file.read(reinterpret_cast<char *>(buffer.data()), record_size);
 
-      labels_.push_back(buffer[0]);
+      uint8_t label = buffer[0];
 
-      torch::Tensor image = torch::from_blob(buffer.data() + 1, {3, 32, 32}, torch::kUInt8).clone();
-      images_.push_back(image);
+      if (label == 1 || label == 2) {
+        labels_.push_back(buffer[0]);
+        std::cout << labels_.back() << " ";
+
+        torch::Tensor image = torch::from_blob(buffer.data() + 1, {3, 32, 32}, torch::kUInt8).clone();
+        images_.push_back(image);
+      }
     }
     std::cout << "Loaded" << labels_.size() << "images" << std::endl;
   }
@@ -147,6 +152,7 @@ int main() {
       .map(torch::data::transforms::Normalize(0.5, 0.5))
       .map(torch::data::transforms::Stack<>());
 
+
   auto data_loader = make_data_loader(std::move(dataset),
                                       torch::data::DataLoaderOptions().batch_size(kBatchSize));
 
@@ -186,6 +192,14 @@ int main() {
       ++batch_index;
     }
   }
+
+  std::vector<at::Tensor> grads;
+
+  for (auto &param: model->parameters()) {
+    grads.push_back(param.grad().view({-1}));
+  }
+
+  auto meow = cat(grads); // gradients
 
   return 0;
 }
