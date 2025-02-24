@@ -1,8 +1,8 @@
 #include "example_app.h"
-
 #include <fstream>
 #include <torch/torch.h>
 #include <iostream>
+#include <c10d/ProcessGroupMPI.hpp>
 
 class CIFAR10Dataset : public torch::data::Dataset<CIFAR10Dataset> {
   std::vector<torch::Tensor> images_;
@@ -23,9 +23,9 @@ public:
 
       uint8_t label = buffer[0];
 
-      if (label == 1 || label == 2) {
+      if (label == 1 || label == 2 || label == 3 || label == 4) {
         labels_.push_back(buffer[0]);
-        std::cout << labels_.back() << " ";
+        // std::cout << labels_.back() << " ";
 
         torch::Tensor image = torch::from_blob(buffer.data() + 1, {3, 32, 32}, torch::kUInt8).clone();
         images_.push_back(image);
@@ -145,17 +145,39 @@ struct ResNetImpl : torch::nn::Module {
 
 TORCH_MODULE(ResNet);
 
+void waitWork(
+  const std::shared_ptr<c10d::ProcessGroupMPI> &pg,
+  const std::vector<std::shared_ptr<c10d::ProcessGroup::Work> > &works) {
+  for (auto &work: works) {
+    try {
+      work->wait();
+    } catch (const std::exception &ex) {
+      std::cerr << "Exception received: " << ex.what() << std::endl;
+      pg->abort();
+    }
+  }
+}
+
 
 int main() {
-  auto kBatchSize = 64;
+  auto pg = c10d::ProcessGroupMPI::createProcessGroupMPI();
+
+  auto numranks = pg->getSize();
+  auto rank = pg->getRank();
+
   auto dataset = CIFAR10Dataset("pytorch_playground/data/cifar-10-batches-py/data_batch_1")
       .map(torch::data::transforms::Normalize(0.5, 0.5))
       .map(torch::data::transforms::Stack<>());
 
+  auto dist_data_sampler =
+      torch::data::samplers::DistributedRandomSampler(dataset.size().value(), numranks, rank, false);
 
-  auto data_loader = make_data_loader(std::move(dataset),
-                                      torch::data::DataLoaderOptions().batch_size(kBatchSize));
+  auto num_train_samples_per_proc = dataset.size().value() / numranks;
+  auto total_batch_size = 64;
+  auto batch_size_per_proc = total_batch_size / numranks;
 
+  auto data_loader = make_data_loader(std::move(dataset), dist_data_sampler, batch_size_per_proc);
+  torch::manual_seed(0);
 
   torch::Device device{torch::kCPU};
 
@@ -168,8 +190,8 @@ int main() {
 
   const size_t num_epochs = 5;
   for (size_t epoch = 1; epoch <= num_epochs; ++epoch) {
-    size_t batch_index = 0;
-    model->train();
+    size_t num_correct = 0;
+
     for (auto &batch: *data_loader) {
       auto data = batch.data.to(device);
       auto target = batch.target.to(device);
@@ -182,15 +204,28 @@ int main() {
 
       loss.backward();
 
+      std::vector<std::shared_ptr<::c10d::ProcessGroup::Work> > works;
+      for (auto &param: model->named_parameters()) {
+        std::vector<torch::Tensor> tmp = {param.value().grad()};
+        auto work = pg->allreduce(tmp);
+        works.push_back(std::move(work));
+      }
+
+      waitWork(pg, works);
+
+      for (auto &param: model->named_parameters()) {
+        param.value().grad().data() = param.value().grad().data() / numranks;
+      }
+
       optimizer.step();
 
-      if (batch_index % 10 == 0) {
-        std::cout << "Epoch [" << epoch << "/" << num_epochs
-            << "], Batch [" << batch_index
-            << "], Loss: " << loss.item<float>() << "\n";
-      }
-      ++batch_index;
+      auto guess = output.argmax(1);
+      num_correct += torch::sum(guess.eq_(target)).item<int64_t>();
     }
+    auto accuracy = 100.0 * num_correct / num_train_samples_per_proc;
+
+    std::cout << "Accuracy in rank " << rank << " in epoch " << epoch << " - "
+        << accuracy << std::endl;
   }
 
   std::vector<at::Tensor> grads;
