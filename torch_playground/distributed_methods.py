@@ -62,6 +62,10 @@ def run(rank, world_size):
     dist.all_reduce(tensor)
     print(f"[all_reduce] rank = {rank} after: {tensor}")
 
+
+    separator()
+
+    print("succes!!!")
     dist.destroy_process_group()
 if __name__ == '__main__':
     world_size = 4
