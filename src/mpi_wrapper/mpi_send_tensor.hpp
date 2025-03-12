@@ -2,21 +2,22 @@
 #include <boost/serialization/split_member.hpp>
 #include <torch/torch.h>
 
-class TensorWrapper {
+class SerializedTensor {
 public:
     torch::Tensor tensor;
 
-    TensorWrapper() = default;
-    explicit TensorWrapper(const torch::Tensor& t) 
-        : tensor(t.device().is_cpu() ? t.contiguous() : t.to(torch::kCPU).contiguous()) {}
+    SerializedTensor() = default;
+
+    explicit SerializedTensor(const torch::Tensor &t)
+        : tensor(t.device().is_cpu() ? t.contiguous() : t.to(torch::kCPU).contiguous()) {
+    }
 
 private:
     friend class boost::serialization::access;
 
-    template <typename Archive>
-    void save(Archive& ar, const unsigned int version) const {
-
-        const torch::Tensor& cont_tensor = tensor;
+    template<typename T>
+    void save(T &ar, const unsigned int version) const {
+        const torch::Tensor &cont_tensor = tensor;
         const auto sizes = cont_tensor.sizes().vec();
         const int64_t ndims = static_cast<int64_t>(sizes.size());
         const int dtype_int = static_cast<int>(cont_tensor.scalar_type());
@@ -27,13 +28,13 @@ private:
         ar & dtype_int;
         ar & num_bytes;
         ar & boost::serialization::make_array(
-            static_cast<const char*>(cont_tensor.data_ptr()), 
+            static_cast<const char *>(cont_tensor.data_ptr()),
             num_bytes
         );
     }
 
-    template <typename Archive>
-    void load(Archive& ar, const unsigned int version) {
+    template<typename Archive>
+    void load(Archive &ar, const unsigned int version) {
         int64_t ndims;
         ar & ndims;
 
@@ -55,31 +56,18 @@ private:
         }
 
         ar & boost::serialization::make_array(
-            static_cast<char*>(tensor.data_ptr()), 
+            static_cast<char *>(tensor.data_ptr()),
             num_bytes
         );
     }
+
 
     BOOST_SERIALIZATION_SPLIT_MEMBER()
 };
 
 namespace boost::mpi {
-    template<> struct is_mpi_datatype<TensorWrapper> : mpl::false_ {};
+    template<>
+    struct is_mpi_datatype<SerializedTensor> : mpl::false_ {
+    };
 }
 
-int main(int argc, char** argv) {
-    boost::mpi::environment env(argc, argv);
-    boost::mpi::communicator world;
-
-    if (world.rank() == 0) {
-        torch::Tensor t = torch::randn({3, 4});
-        TensorWrapper wrapper(t);
-        world.send(1, 0, wrapper);
-    } else {
-        TensorWrapper wrapper;
-        world.recv(0, 0, wrapper);
-        std::cout << "Received tensor:\n" << wrapper.tensor << std::endl;
-    }
-
-    return 0;
-}
