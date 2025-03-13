@@ -30,3 +30,13 @@
 *.exe
 *.out
 *.app
+
+libtorch/
+boost_1_87_0/
+cmake*/
+mnist/
+cifar-10-batches-bin/
+pytorch_playground/main.py
+pytorch_playground/data/
+pytorch_playground/cifar10_test.pt
+pytorch_playground/cifar10_train.pt
