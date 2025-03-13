@@ -10,7 +10,7 @@ inline void send(boost::mpi::communicator &world, torch::Tensor &tensor, int des
     world.send(dest, 0, tens);
 }
 
-inline void receive(boost::mpi::communicator &world, torch::Tensor &tensor, int source) {
+inline void recv(boost::mpi::communicator &world, torch::Tensor &tensor, int source) {
     SerializedTensor received{torch::zeros_like(tensor)};
     world.recv(source, 0, received);
     received.toTensor(tensor);
@@ -23,7 +23,7 @@ inline void all_reduce(boost::mpi::communicator &world, torch::Tensor &tensor, i
     if (dest == rank) {
         for (int i = 0; i < size && i != dest; ++i) {
             torch::Tensor received{torch::zeros_like(tensor)};
-            receive(world, received, i);
+            recv(world, received, i);
             result += received;
         }
 
@@ -32,7 +32,7 @@ inline void all_reduce(boost::mpi::communicator &world, torch::Tensor &tensor, i
         }
     } else {
         send(world, tensor, dest);
-        receive(world, result, dest);
+        recv(world, result, dest);
     }
     tensor = result;
 }

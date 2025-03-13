@@ -34,7 +34,7 @@ int main(int argc, char **argv) {
         t *= 2;
         send(world, t, 1);
     } else if (world.rank() == 1) {
-        receive(world, t, 0);
+        recv(world, t, 0);
         std::cout << "received\n" << t << "\n----------------------------\n";
     }
 }

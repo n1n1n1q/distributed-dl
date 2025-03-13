@@ -35,10 +35,8 @@
   <component name="ChangeListManager">
     <list default="true" id="c0aa874c-d046-4b04-9769-abd58511699f" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/CMakeLists.txt" beforeDir="false" afterPath="$PROJECT_DIR$/CMakeLists.txt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/distributed.hpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/distributed.hpp" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main.cpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.cpp" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/mpi_wrapper/mpi_send_tensor.hpp" beforeDir="false" afterPath="$PROJECT_DIR$/src/mpi_wrapper/SerializedTensor.hpp" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
