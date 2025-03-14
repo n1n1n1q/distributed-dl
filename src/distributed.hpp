@@ -18,7 +18,7 @@ inline void recv(boost::mpi::communicator &world, torch::Tensor &tensor, int sou
     received.toTensor(tensor);
 }
 
-inline void all_reduce(boost::mpi::communicator &world, torch::Tensor &tensor, int dest = 0) {
+inline void all_reduce(boost::mpi::communicator &world, torch::Tensor &tensor, int dest = 0, std::function<torch::Tensor(torch::Tensor, torch::Tensor)> op = torch::add) {
     int rank = world.rank();
     int size = world.size();
     torch::Tensor result{torch::zeros_like(tensor)};
@@ -26,7 +26,7 @@ inline void all_reduce(boost::mpi::communicator &world, torch::Tensor &tensor, i
         for (int i = 0; i < size && i != dest; ++i) {
             torch::Tensor received{torch::zeros_like(tensor)};
             recv(world, received, i);
-            result += received;
+            result = op(result, received);
         }
 
         for (int i = 0; i < size && i != dest; ++i) {
