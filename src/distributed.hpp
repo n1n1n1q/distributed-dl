@@ -2,6 +2,8 @@
 #ifndef DISTRIBUTED_DL
 #define DISTRIBUTED_DL
 
+#include <functional>
+
 #include <torch/torch.h>
 #include "mpi_wrapper/SerializedTensor.hpp"
 
@@ -35,6 +37,29 @@ inline void all_reduce(boost::mpi::communicator &world, torch::Tensor &tensor, i
         recv(world, result, dest);
     }
     tensor = result;
+}
+
+inline void reduce(boost::mpi::communicator &world, torch::Tensor &tensor, int dest = 0, std::function<torch::Tensor(torch::Tensor, torch::Tensor)> op = torch::add) {
+    int rank = world.rank();
+    if (rank == dest) {
+        torch::Tensor result = tensor.clone();
+        for (int i = 0; i < size; ++i) {
+            if (i != dest) {
+                torch::Tensor received = torch::zeros_like(tensor);
+                recv(world, received, i);
+                result = op(result, received);
+            }
+        }
+        tensor = result;
+    } else {
+        send(world, tensor, dest);
+    }
+}
+
+inline void broadcast(boost::mpi::communicator &world, torch::Tensor &tensor, int source = 0) {
+    SerializedTensor broadcasted{tensor};
+    world.broadcast(source, 0, broadcasted);
+    broadcasted.toTensor(tensor);
 }
 
 #endif
