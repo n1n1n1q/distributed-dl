@@ -7,61 +7,99 @@
 #include <boost/serialization/vector.hpp>
 #include <torch/torch.h>
 
+
 class SerializedTensorBase {
+public:
+    virtual ~SerializedTensorBase() = default;
+
+    virtual void toTensor(torch::Tensor &outTensor) const = 0;
+
+private:
+    friend class boost::serialization::access;
+
+    template<class Archive>
+    void serialize(Archive & /* ar */, const unsigned int /* version */) {
+    }
 };
 
-class SerializedTensorCPU_impl : public SerializedTensorBase {
-public:
-    int64_t num_bytes;
-    std::vector<char> data;
 
+class SerializedTensorCPU_impl : public SerializedTensorBase {
+    bool has_grad = false;
+    int64_t num_bytes = 0;
+    std::vector<int64_t> sizes;
+    std::vector<char> tensor_data;
+    std::vector<char> grad_data;
+
+public:
     SerializedTensorCPU_impl() = default;
 
     SerializedTensorCPU_impl(const torch::Tensor &t) {
         auto cont_tensor = t.contiguous();
 
-        if (cont_tensor.retains_grad())std::cout << "gradient is:\n" << cont_tensor.grad() << std::endl;
-
+        sizes = cont_tensor.sizes().vec();
         num_bytes = cont_tensor.numel() * cont_tensor.element_size();
-        data.resize(num_bytes);
-        std::memcpy(data.data(), cont_tensor.data_ptr(), num_bytes);
+
+        tensor_data.resize(num_bytes);
+        std::memcpy(tensor_data.data(), cont_tensor.data_ptr(), num_bytes);
+
+        if (cont_tensor.grad().numel() != 0) {
+            has_grad = true;
+            grad_data.resize(num_bytes);
+            std::memcpy(grad_data.data(), cont_tensor.grad().data_ptr(), num_bytes);
+        }
     }
 
-    void toTensor(torch::Tensor &outTensor) const {
-        std::memcpy(outTensor.data_ptr(), data.data(), num_bytes);
+    void toTensor(torch::Tensor &outTensor) {
+        outTensor = torch::from_blob(
+            tensor_data.data(),
+            sizes,
+            outTensor.scalar_type()
+        ).clone();
+        if (has_grad) {
+            outTensor.mutable_grad() = torch::from_blob(
+                grad_data.data(),
+                sizes,
+                outTensor.scalar_type()
+            ).clone();
+        }
     }
 
 private:
     friend class boost::serialization::access;
 
-    template<typename T>
-    void save(T &ar, const unsigned int version) const {
+    template<class Archive>
+    void serialize(Archive &ar, const unsigned int version) {
+        ar & has_grad;
         ar & num_bytes;
-        ar & data;
+        ar & sizes;
+        ar & tensor_data;
+        ar & grad_data;
     }
-
-    template<typename Archive>
-    void load(Archive &ar, const unsigned int version) {
-        data.resize(num_bytes);
-
-        ar & num_bytes;
-        ar & data;
-    }
-
-    BOOST_SERIALIZATION_SPLIT_MEMBER()
 };
 
-namespace boost::mpi {
-    template<>
-    struct is_mpi_datatype<SerializedTensorCPU_impl> : mpl::false_ {
-    };
-}
 
 class SerializedTensor {
-    SerializedTensorBase tensor;
+private:
+    std::unique_ptr<SerializedTensorCPU_impl> tensor_impl;
+
+public:
+    SerializedTensor() = default;
+
 
     SerializedTensor(torch::Tensor &t) {
-        if (t.is_cpu()) tensor = SerializedTensorCPU_impl(t);
+        if (t.is_cpu()) tensor_impl = std::make_unique<SerializedTensorCPU_impl>(t);
+    }
+
+    void toTensor(torch::Tensor &outTensor) {
+        tensor_impl->toTensor(outTensor);
+    }
+
+private:
+    friend class boost::serialization::access;
+
+    template<class Archive>
+    void serialize(Archive &ar, const unsigned int /* version */) {
+        ar & tensor_impl;
     }
 };
 
