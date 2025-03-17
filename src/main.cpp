@@ -1,5 +1,5 @@
 #include "mpi_wrapper/SerializedTensor.hpp"
-// #include "distributed.hpp"
+#include "distributed.hpp"
 // tmp file
 int test_mpi_serialize(int argc, char **argv) {
     boost::mpi::environment env(argc, argv);
@@ -15,12 +15,12 @@ int test_mpi_serialize(int argc, char **argv) {
 
         std::cout << "Our tensor\n" << a << "\nits gradient\n" << a.grad() << std::endl;
 
-        SerializedTensor wrapper(a);
+        SerializedTensorCPU_impl wrapper(a);
         world.send(1, 0, wrapper);
     } else {
         torch::Tensor t = torch::zeros({2, 2,});
 
-        SerializedTensor wrapper;
+        SerializedTensorCPU_impl wrapper;
         world.recv(0, 0, wrapper);
 
         std::cout << "everything is fine there\n";
@@ -33,26 +33,27 @@ int test_mpi_serialize(int argc, char **argv) {
 }
 
 int main(int argc, char **argv) {
-    test_mpi_serialize(argc, argv);
+    // test_mpi_serialize(argc, argv);
 
-    // return 0;
-    //
-    // boost::mpi::environment env(argc, argv);
-    // boost::mpi::communicator world;
-    //
-    // torch::Tensor t = torch::randn({2, 2});
-    //
-    // if (world.rank() == 0) {
-    //     std::cout << "sending\n" << t << "\n----------------------------\n";
-    //     t *= 2;
-    //     send(world, t, 1);
-    // } else if (world.rank() == 1) {
-    //     recv(world, t, 0);
-    //     std::cout << "received\n" << t << "\n----------------------------\n";
-    //     t *= 8;
-    //     send(world, t, 2);
-    // } else if (world.rank() == 2) {
-    //     recv(world, t, 1);
-    //     std::cout << "I am changed to\n" << t << "\n";
-    // }
+
+    boost::mpi::environment env(argc, argv);
+    boost::mpi::communicator world;
+
+    torch::Tensor t = torch::randn({2, 2}, torch::requires_grad(true));
+
+    if (world.rank() == 0) {
+        auto out = (t * 2).mean();
+        out.backward();
+        std::cout << "sending\n" << t << "\nmy grad\n" << t.grad() << std::endl;
+
+        send(world, t, 1);
+    } else if (world.rank() == 1) {
+        recv(world, t, 0);
+        std::cout << "received\n" << t << "\ntogether with (if it had) grad\n" << t.grad() << std::endl;
+        t *= 8;
+        send(world, t, 2);
+    } else if (world.rank() == 2) {
+        recv(world, t, 1);
+        std::cout << "I am changed to\n" << t << "\n";
+    }
 }

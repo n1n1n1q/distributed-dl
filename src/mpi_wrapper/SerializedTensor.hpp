@@ -8,22 +8,7 @@
 #include <torch/torch.h>
 
 
-class SerializedTensorBase {
-public:
-    virtual ~SerializedTensorBase() = default;
-
-    virtual void toTensor(torch::Tensor &outTensor) const = 0;
-
-private:
-    friend class boost::serialization::access;
-
-    template<class Archive>
-    void serialize(Archive & /* ar */, const unsigned int /* version */) {
-    }
-};
-
-
-class SerializedTensorCPU_impl : public SerializedTensorBase {
+class SerializedTensorCPU_impl {
     bool has_grad = false;
     int64_t num_bytes = 0;
     std::vector<int64_t> sizes;
@@ -77,30 +62,5 @@ private:
     }
 };
 
-
-class SerializedTensor {
-private:
-    std::unique_ptr<SerializedTensorCPU_impl> tensor_impl;
-
-public:
-    SerializedTensor() = default;
-
-
-    SerializedTensor(torch::Tensor &t) {
-        if (t.is_cpu()) tensor_impl = std::make_unique<SerializedTensorCPU_impl>(t);
-    }
-
-    void toTensor(torch::Tensor &outTensor) {
-        tensor_impl->toTensor(outTensor);
-    }
-
-private:
-    friend class boost::serialization::access;
-
-    template<class Archive>
-    void serialize(Archive &ar, const unsigned int /* version */) {
-        ar & tensor_impl;
-    }
-};
 
 #endif

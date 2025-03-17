@@ -5,6 +5,8 @@
 #include <torch/torch.h>
 #include "mpi_wrapper/SerializedTensor.hpp"
 
+#define SerializedTensor SerializedTensorCPU_impl
+
 inline void send(boost::mpi::communicator &world, torch::Tensor &tensor, int dest) {
     SerializedTensor tens{tensor};
     world.send(dest, 0, tens);
