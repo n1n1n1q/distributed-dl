@@ -11,7 +11,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 # target_link_libraries(example-app "${TORCH_LIBRARIES}")
 
 ### MPI ###
-add_executable(mpi-test src/main.cpp src/mpi_wrapper/SerializedTensor.hpp src/distributed.hpp)
+add_executable(mpi-test src/main.cpp src/mpi_wrapper/SerializedTensor.hpp)
 
 find_package(Boost 1.70 REQUIRED COMPONENTS mpi serialization)
 find_package(MPI REQUIRED)

@@ -7,15 +7,21 @@
 #include <boost/serialization/vector.hpp>
 #include <torch/torch.h>
 
-class SerializedTensor {
+class SerializedTensorBase {
+};
+
+class SerializedTensorCPU_impl : public SerializedTensorBase {
 public:
     int64_t num_bytes;
     std::vector<char> data;
 
-    SerializedTensor() = default;
+    SerializedTensorCPU_impl() = default;
 
-    SerializedTensor(const torch::Tensor &t) {
+    SerializedTensorCPU_impl(const torch::Tensor &t) {
         auto cont_tensor = t.contiguous();
+
+        if (cont_tensor.retains_grad())std::cout << "gradient is:\n" << cont_tensor.grad() << std::endl;
+
         num_bytes = cont_tensor.numel() * cont_tensor.element_size();
         data.resize(num_bytes);
         std::memcpy(data.data(), cont_tensor.data_ptr(), num_bytes);
@@ -47,8 +53,16 @@ private:
 
 namespace boost::mpi {
     template<>
-    struct is_mpi_datatype<SerializedTensor> : mpl::false_ {
+    struct is_mpi_datatype<SerializedTensorCPU_impl> : mpl::false_ {
     };
 }
+
+class SerializedTensor {
+    SerializedTensorBase tensor;
+
+    SerializedTensor(torch::Tensor &t) {
+        if (t.is_cpu()) tensor = SerializedTensorCPU_impl(t);
+    }
+};
 
 #endif
