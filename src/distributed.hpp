@@ -16,6 +16,16 @@ inline void recv(boost::mpi::communicator &world, torch::Tensor &tensor, int sou
     received.toTensor(tensor);
 }
 
+boost::mpi::request isend(boost::mpi::communicator &world, torch::Tensor &tensor, int dest) {
+    SerializedTensor tens{tensor};
+    return world.isend(dest, 0, *tens);
+}
+
+boost::mpi::request irecv(boost::mpi::communicator &world, torch::Tensor &tensor, int source) {
+    SerializedTensor received{torch::zeros_like(tensor)};
+    return world.irecv(source, 0, *received);
+}
+
 inline void all_reduce(boost::mpi::communicator &world, torch::Tensor &tensor, int dest = 0) {
     int rank = world.rank();
     int size = world.size();
