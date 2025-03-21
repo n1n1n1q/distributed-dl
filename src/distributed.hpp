@@ -57,9 +57,17 @@ inline void reduce(boost::mpi::communicator &world, torch::Tensor &tensor, int d
 }
 
 inline void broadcast(boost::mpi::communicator &world, torch::Tensor &tensor, int source = 0) {
-    SerializedTensor broadcasted{tensor};
-    world.broadcast(source, 0, broadcasted);
-    broadcasted.toTensor(tensor);
+    int rank = world.rank();
+    if (rank == source) { 
+        int size = world.size();
+        for (int i = 0; i < size; ++i) {
+            if (i != source) {
+                send(world, tensor, i);
+            }
+        }
+    } else {
+        recv(world, tensor, source);
+    }
 }
 
 #endif
