@@ -49,9 +49,10 @@ inline void all_reduce(boost::mpi::communicator &world, torch::Tensor &tensor, i
                 result = op(result, received);
             }
         }
-
-        for (int i = 0; i < size && i != dest; ++i) {
-            send(world, result, i);
+        for (int i = 0; i < size; ++i) {
+            if (i != dest) {
+                send(world, result, i);
+            }
         }
     } else {
         send(world, tensor, dest);
@@ -79,12 +80,12 @@ inline void reduce(boost::mpi::communicator &world, torch::Tensor &tensor, int d
     }
 }
 
-boost::mpi::request isend(boost::mpi::communicator &world, torch::Tensor &tensor, int dest) {
+inline boost::mpi::request isend(boost::mpi::communicator &world, torch::Tensor &tensor, int dest) {
     SerializedTensor tens{tensor};
     return world.isend(dest, 0, tens);
 }
 
-boost::mpi::request irecv(boost::mpi::communicator &world, torch::Tensor &tensor, int source) {
+inline boost::mpi::request irecv(boost::mpi::communicator &world, torch::Tensor &tensor, int source) {
     SerializedTensor received{torch::zeros_like(tensor)};
     return world.irecv(source, 0, received);
 }
