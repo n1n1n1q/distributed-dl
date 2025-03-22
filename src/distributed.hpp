@@ -3,7 +3,7 @@
 #define DISTRIBUTED_DL
 
 #include <torch/torch.h>
-#include "mpi_wrapper/SerializedTensor.hpp"
+#include "serializedtensor.hpp"
 
 #define SerializedTensor SerializedTensorCPU_impl
 

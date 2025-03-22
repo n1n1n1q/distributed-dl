@@ -1,7 +1,7 @@
-#include "mpi_wrapper/SerializedTensor.hpp"
+#include "serializedtensor.hpp"
 #include "distributed.hpp"
 // tmp file
-int test_mpi_serialize(int argc, char **argv) {
+int test(int argc, char **argv) {
     boost::mpi::environment env(argc, argv);
     boost::mpi::communicator world;
 
