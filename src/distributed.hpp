@@ -18,13 +18,15 @@ inline void send(boost::mpi::communicator &world, torch::Tensor &tensor, int des
 
 inline void recv(boost::mpi::communicator &world, torch::Tensor &tensor, int source) {
     SerializedTensor received{torch::zeros_like(tensor)};
+
+
     world.recv(source, 0, received);
     received.toTensor(tensor);
 }
 
 inline void broadcast(boost::mpi::communicator &world, torch::Tensor &tensor, int source = 0) {
     int rank = world.rank();
-    if (rank == source) { 
+    if (rank == source) {
         int size = world.size();
         for (int i = 0; i < size; ++i) {
             if (i != source) {
@@ -36,14 +38,14 @@ inline void broadcast(boost::mpi::communicator &world, torch::Tensor &tensor, in
     }
 }
 
-template <typename F = decltype(default_add)>
+template<typename F = decltype(default_add)>
 inline void all_reduce(boost::mpi::communicator &world, torch::Tensor &tensor, int dest = 0, F op = default_add) {
     int rank = world.rank();
     int size = world.size();
     torch::Tensor result{torch::zeros_like(tensor)};
     if (dest == rank) {
         for (int i = 0; i < size; ++i) {
-            if (i != dest){
+            if (i != dest) {
                 torch::Tensor received{torch::zeros_like(tensor)};
                 recv(world, received, i);
                 result = op(result, received);
@@ -61,7 +63,7 @@ inline void all_reduce(boost::mpi::communicator &world, torch::Tensor &tensor, i
     tensor = result;
 }
 
-template <typename F = decltype(default_add)>
+template<typename F = decltype(default_add)>
 inline void reduce(boost::mpi::communicator &world, torch::Tensor &tensor, int dest = 0, F op = default_add) {
     int rank = world.rank();
     int size = world.size();
