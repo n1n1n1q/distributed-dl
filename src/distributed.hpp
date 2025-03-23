@@ -80,6 +80,40 @@ inline void reduce(boost::mpi::communicator &world, torch::Tensor &tensor, int d
     }
 }
 
+inline void scatter(boost::mpi::communicator& world, torch::Tensor& tensor, int root = 0) {
+    int rank = world.rank();
+    if (rank == root) {
+        std::vector<torch::Tensor> chunks = tensor.tensor_split(world.size(), 0);
+        for (int i = 0; i < world.size(); ++i) {
+            if (i == root) {
+                tensor = chunks[i].clone();
+            } else {
+                send(world, chunks[i], i);
+            }
+        }
+    } else {
+        recv(world, tensor, root);
+    }
+}
+
+inline void gather(boost::mpi::communicator& world, torch::Tensor& tensor, 
+                    std::vector<torch::Tensor>& gathered_tensors, int root = 0) {
+    if (world.rank() == root) {
+        gathered_tensors.clear();
+        gathered_tensors.reserve(world.size());
+        gathered_tensors.push_back(tensor);
+
+        for (int src = 0; src < world.size(); ++src) {
+            if (src == root) continue;
+            torch::Tensor temp = torch::zeros_like(tensor);
+            recv(world, temp, src);
+            gathered_tensors.push_back(temp);
+        }
+    } else {
+        send(world, tensor, root);
+    }
+}
+
 inline boost::mpi::request isend(boost::mpi::communicator &world, torch::Tensor &tensor, int dest) {
     SerializedTensor tens{tensor};
     return world.isend(dest, 0, tens);

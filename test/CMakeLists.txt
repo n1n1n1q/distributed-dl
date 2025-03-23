@@ -1,32 +1,45 @@
 cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
-project(distributed_dl)
+project(distributed_dl_tests)
 
-option(BUILD_TESTS "Build tests" OFF)
 
-set(Torch_DIR "./libtorch/share/cmake/Torch")
+set(Torch_DIR "../libtorch/share/cmake/Torch")
 find_package(Torch REQUIRED)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 
-if (BUILD_TESTS)
-        add_subdirectory(test)
-endif()
-
-# add_executable(example-app pytorch_playground/example_app.cpp)
-# target_link_libraries(example-app "${TORCH_LIBRARIES}")
-
-### MPI ###
-add_executable(mpi-test src/main.cpp)
+### find packages ###
 
 find_package(Boost 1.70 REQUIRED COMPONENTS mpi serialization)
 find_package(MPI REQUIRED)
-target_link_libraries(mpi-test
+
+### gather-test ###
+
+add_executable(gather-test gather_test.cpp)
+
+target_include_directories(gather-test PRIVATE ../src)
+
+target_link_libraries(gather-test
         PRIVATE
         "${TORCH_LIBRARIES}"
         Boost::mpi
         Boost::serialization
         MPI::MPI_CXX
 )
-set_property(TARGET mpi-test PROPERTY CXX_STANDARD 17)
+set_property(TARGET gather-test PROPERTY CXX_STANDARD 17)
+
+### scatter-test ###
+
+add_executable(scatter-test scatter_test.cpp)
+
+target_include_directories(scatter-test PRIVATE ../src)
+
+target_link_libraries(scatter-test
+        PRIVATE
+        "${TORCH_LIBRARIES}"
+        Boost::mpi
+        Boost::serialization
+        MPI::MPI_CXX
+)
+set_property(TARGET scatter-test PROPERTY CXX_STANDARD 17)
 
 
 # The following code block is suggested to be used on Windows.
