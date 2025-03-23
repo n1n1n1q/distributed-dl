@@ -2,8 +2,10 @@ cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
 project(distributed_dl)
 
 
-set(Torch_DIR "./libtorch/share/cmake/Torch")
 find_package(Torch REQUIRED)
+find_package(Boost 1.70 REQUIRED COMPONENTS mpi serialization)
+find_package(MPI REQUIRED)
+
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 
 
@@ -13,8 +15,6 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 ### MPI ###
 add_executable(mpi-test src/main.cpp src/serializedtensor.hpp src/distributed.hpp)
 
-find_package(Boost 1.70 REQUIRED COMPONENTS mpi serialization)
-find_package(MPI REQUIRED)
 target_link_libraries(mpi-test
         PRIVATE
         "${TORCH_LIBRARIES}"
