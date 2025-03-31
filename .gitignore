@@ -31,6 +31,7 @@
 *.out
 *.app
 
+
 libtorch/
 boost_1_87_0/
 cmake*/
