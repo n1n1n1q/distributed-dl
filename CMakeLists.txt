@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
 project(distributed_dl)
 
+option(BUILD_TESTS "Build tests" OFF)
 
 find_package(Torch REQUIRED)
 find_package(Boost 1.70 REQUIRED COMPONENTS mpi serialization)
@@ -8,12 +9,15 @@ find_package(MPI REQUIRED)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 
+if (BUILD_TESTS)
+        add_subdirectory(test)
+endif()
 
 # add_executable(example-app pytorch_playground/example_app.cpp)
 # target_link_libraries(example-app "${TORCH_LIBRARIES}")
 
 ### MPI ###
-add_executable(mpi-test src/main.cpp src/serializedtensor.hpp src/distributed.hpp)
+add_executable(mpi-test src/main.cpp)
 
 target_link_libraries(mpi-test
         PRIVATE
