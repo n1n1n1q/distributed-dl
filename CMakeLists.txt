@@ -29,6 +29,22 @@ target_link_libraries(mpi-test
 set_property(TARGET mpi-test PROPERTY CXX_STANDARD 17)
 
 
+### testing ###
+
+add_executable(test testing/test.cpp)
+
+find_package(Boost 1.70 REQUIRED COMPONENTS mpi serialization)
+find_package(MPI REQUIRED)
+target_link_libraries(test
+        PRIVATE
+        "${TORCH_LIBRARIES}"
+        Boost::mpi
+        Boost::serialization
+        MPI::MPI_CXX
+)
+set_property(TARGET test PROPERTY CXX_STANDARD 17)
+
+
 # The following code block is suggested to be used on Windows.
 # According to https://github.com/pytorch/pytorch/issues/25457,
 # the DLLs need to be copied to avoid memory errors.

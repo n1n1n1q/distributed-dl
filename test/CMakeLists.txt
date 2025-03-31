@@ -11,35 +11,28 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 find_package(Boost 1.70 REQUIRED COMPONENTS mpi serialization)
 find_package(MPI REQUIRED)
 
-### gather-test ###
+### tests ###
 
-add_executable(gather-test gather_test.cpp)
+set(TEST_EXECUTABLES gather-test scatter-test igather-test)
 
-target_include_directories(gather-test PRIVATE ../src)
-
-target_link_libraries(gather-test
+foreach(EXEC_NAME IN LISTS TEST_EXECUTABLES)
+    string(REPLACE "-" "_" SOURCE_BASE "${EXEC_NAME}")
+    set(SOURCE_FILE "${SOURCE_BASE}.cpp")
+    
+    add_executable(${EXEC_NAME} ${SOURCE_FILE})
+    
+    target_include_directories(${EXEC_NAME} PRIVATE ../src)
+    
+    target_link_libraries(${EXEC_NAME}
         PRIVATE
         "${TORCH_LIBRARIES}"
         Boost::mpi
         Boost::serialization
         MPI::MPI_CXX
-)
-set_property(TARGET gather-test PROPERTY CXX_STANDARD 17)
-
-### scatter-test ###
-
-add_executable(scatter-test scatter_test.cpp)
-
-target_include_directories(scatter-test PRIVATE ../src)
-
-target_link_libraries(scatter-test
-        PRIVATE
-        "${TORCH_LIBRARIES}"
-        Boost::mpi
-        Boost::serialization
-        MPI::MPI_CXX
-)
-set_property(TARGET scatter-test PROPERTY CXX_STANDARD 17)
+    )
+    
+    set_property(TARGET ${EXEC_NAME} PROPERTY CXX_STANDARD 17)
+endforeach()
 
 
 # The following code block is suggested to be used on Windows.

@@ -41,3 +41,4 @@ pytorch_playground/data/
 pytorch_playground/cifar10_test.pt
 pytorch_playground/cifar10_train.pt
 build/
+testing/
