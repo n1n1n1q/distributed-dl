@@ -148,12 +148,11 @@ TORCH_MODULE(ResNet);
 
 
 int main(int argc, char **argv) {
-  boost::mpi::environment env(argc, argv);
-  boost::mpi::communicator world;
+  ProcessGroupMPI pg = ProcessGroupMPI(argc, argv);
 
 
-  auto numranks = world.size();
-  auto rank = world.rank();
+  auto numranks = pg.size();
+  auto rank = pg.rank();
 
   auto dataset = CIFAR10Dataset("./cifar-10-batches-bin/data_batch_1.bin")
       .map(torch::data::transforms::Normalize(0.5, 0.5))
@@ -199,7 +198,7 @@ int main(int argc, char **argv) {
       for (auto &param: model->named_parameters()) {
         auto meow = param.value().mutable_grad();
 
-        all_reduce(world, meow);
+        pg.all_reduce(meow);
       }
 
 
