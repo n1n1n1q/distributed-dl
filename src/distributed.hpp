@@ -7,28 +7,10 @@
 
 #define SerializedTensor SerializedTensorCPU_impl
 
-inline void barrier(boost::mpi::communicator world) {
-    world.barrier();
-}
 
 static auto default_add = [](const torch::Tensor &a, const torch::Tensor &b) -> torch::Tensor {
     return torch::add(a, b);
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 class ProcessGroupMPI {
@@ -121,7 +103,7 @@ public:
     }
 
 
-    inline void scatter( torch::Tensor& tensor, int root = 0) {
+    inline void scatter(torch::Tensor &tensor, int root = 0) {
         int rank = this->rank();
         if (rank == root) {
             std::vector<torch::Tensor> chunks = tensor.tensor_split(this->size(), 0);
@@ -129,17 +111,16 @@ public:
                 if (i == root) {
                     tensor = chunks[i].clone();
                 } else {
-                    send( chunks[i], i);
+                    send(chunks[i], i);
                 }
             }
         } else {
-            recv( tensor, root);
+            recv(tensor, root);
         }
-
     }
 
-    inline void gather(torch::Tensor& tensor,
-                        std::vector<torch::Tensor>& gathered_tensors, int root = 0) {
+    inline void gather(torch::Tensor &tensor,
+                       std::vector<torch::Tensor> &gathered_tensors, int root = 0) {
         if (this->rank() == root) {
             gathered_tensors.clear();
             gathered_tensors.reserve(this->size());
@@ -148,11 +129,11 @@ public:
             for (int src = 0; src < this->size(); ++src) {
                 if (src == root) continue;
                 torch::Tensor temp = torch::zeros_like(tensor);
-                recv( temp, src);
+                recv(temp, src);
                 gathered_tensors.push_back(temp);
             }
         } else {
-            send( tensor, root);
+            send(tensor, root);
         }
     }
 
@@ -164,6 +145,10 @@ public:
     inline boost::mpi::request irecv(torch::Tensor &tensor, int source) {
         SerializedTensor received{torch::zeros_like(tensor)};
         return world_ptr->irecv(source, 0, received);
+    }
+
+    inline void barrier() {
+        world_ptr->barrier();
     }
 };
 
