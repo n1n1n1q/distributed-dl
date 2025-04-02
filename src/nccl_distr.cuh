@@ -46,12 +46,23 @@ inline void broadcast(ncclComm_t comm, cudaStream_t stream, torch::Tensor &tenso
         if (i == root)
         {
             NCCLCHECK(ncclSend(data, size, ncclFloat, i, comm, stream));
-        } 
         if (i != source)
         {
             NCCLCHECK(ncclRecv(data, size, ncclFloat, i, comm, stream));
         }
     }
+}
+
+inline void reduce(ncclComm_t comm, cudaStream_t stream, torch::Tensor &tensor, int dest = 0; F op = ncclSum) {
+    auto data = tensor.data_ptr<float>();
+    auto size = tensor.numel();
+    NCCLCHECK(ncclReduce(data, data, size, ncclFloat, op, dest, comm, stream));
+}
+
+inline void all_reduce(ncclComm_t comm, cudaStream_t stream, torch::Tensor &tensor, F op = ncclSum) {
+    auto data = tensor.data_ptr<float>();
+    auto size = tensor.numel();
+    NCCLCHECK(ncclAllReduce(data, data, size, ncclFloat, op, comm, stream));
 }
 
 #endif // NCCLDISTR
