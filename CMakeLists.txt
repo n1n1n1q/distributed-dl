@@ -1,3 +1,4 @@
+
 cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
 project(distributed_dl)
 
@@ -55,6 +56,3 @@ if (MSVC)
             $<TARGET_FILE_DIR:example-app>)
 endif (MSVC)
 # copied from docs ---------------------------------------------
-
-# --------------------------------------------------------------
-# add_executable(distributed_dl src/main.cpp)
