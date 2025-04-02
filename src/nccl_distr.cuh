@@ -39,27 +39,19 @@ inline void recv(ncclComm_t comm, cudaStream_t stream, torch::Tensor &tensor, in
     NCCLCHECK(ncclRecv(data, size, ncclFloat, source, comm, stream));
 }
 
-inline void broadcast(ncclComm_t comm, cudaStream_t stream, torch::Tensor &tensor, int source) {
+inline void broadcast(ncclComm_t comm, cudaStream_t stream, torch::Tensor &tensor, int root) {
     auto data = tensor.data_ptr<float>();
     auto size = tensor.numel();
-    for (int i = 0; i < comm.nRanks; ++i) {
-        if (i == root)
-        {
-            NCCLCHECK(ncclSend(data, size, ncclFloat, i, comm, stream));
-        if (i != source)
-        {
-            NCCLCHECK(ncclRecv(data, size, ncclFloat, i, comm, stream));
-        }
-    }
+    NCCLCHECK(ncclBroadcast(data, data, size, ncclFloat, root, comm, stream));
 }
 
-inline void reduce(ncclComm_t comm, cudaStream_t stream, torch::Tensor &tensor, int dest = 0; F op = ncclSum) {
+inline void reduce(ncclComm_t comm, cudaStream_t stream, torch::Tensor &tensor, int root = 0, ncclRedOp_t op = ncclSum) {
     auto data = tensor.data_ptr<float>();
     auto size = tensor.numel();
-    NCCLCHECK(ncclReduce(data, data, size, ncclFloat, op, dest, comm, stream));
+    NCCLCHECK(ncclReduce(data, data, size, ncclFloat, op, root, comm, stream));
 }
 
-inline void all_reduce(ncclComm_t comm, cudaStream_t stream, torch::Tensor &tensor, F op = ncclSum) {
+inline void all_reduce(ncclComm_t comm, cudaStream_t stream, torch::Tensor &tensor, ncclRedOp_t op = ncclSum) {
     auto data = tensor.data_ptr<float>();
     auto size = tensor.numel();
     NCCLCHECK(ncclAllReduce(data, data, size, ncclFloat, op, comm, stream));
