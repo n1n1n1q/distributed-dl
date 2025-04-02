@@ -7,6 +7,10 @@
 
 #define SerializedTensor SerializedTensorCPU_impl
 
+inline void barrier(mpi::communicator world) {
+    world.barrier();
+}
+
 static auto default_add = [](const torch::Tensor &a, const torch::Tensor &b) -> torch::Tensor {
     return torch::add(a, b);
 };
