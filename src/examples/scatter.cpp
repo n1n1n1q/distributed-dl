@@ -21,22 +21,11 @@ void scatterTest(ProcessGroupMPI &pg, int root = 0)
     {
         std::cout << "Rank " << pg.rank() << " Tensor:\n"
                   << local_tensor << std::endl;
-        if (pg.size() > 1)
-        {
-            int token = 0;
-            pg.world_ptr->send(1, 0, token);
-        }
     }
     else
     {
-        int token;
-        pg.world_ptr->recv(pg.rank() - 1, 0, token);
         std::cout << "Rank " << pg.rank() << " Tensor:\n"
                   << local_tensor << std::endl;
-        if (pg.rank() < pg.size() - 1)
-        {
-            pg.world_ptr->send(pg.rank() + 1, 0, token);
-        }
     }
 }
 
