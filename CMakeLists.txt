@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
 project(distributed_dl)
 
+# set(CUDACXX "/usr/local/cuda-12.8/bin/nvcc")
+# set(CMAKE_CUDA_COMPILER "/usr/local/cuda-12.8/bin/nvcc")
+# set(CMAKE_PREFIX_PATH /home/oleh/.libs/libtorch/share/cmake/Torch)
+# set(CMAKE_CUDA_ARCHITECTURES 86)
 
 find_package(Torch REQUIRED)
 find_package(Boost 1.70 REQUIRED COMPONENTS mpi serialization)
@@ -8,22 +12,10 @@ find_package(MPI REQUIRED)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 
+### Include Directories ###
+include_directories(${PROJECT_SOURCE_DIR}/src)
 
-# add_executable(example-app pytorch_playground/example_app.cpp)
-# target_link_libraries(example-app "${TORCH_LIBRARIES}")
-
-### MPI ###
-add_executable(mpi-test src/main.cpp src/serializedtensor.hpp src/distributed.hpp)
-
-target_link_libraries(mpi-test
-        PRIVATE
-        "${TORCH_LIBRARIES}"
-        Boost::mpi
-        Boost::serialization
-        MPI::MPI_CXX
-)
-
-add_executable(resnet pytorch-playground/resnet.cpp src/serializedtensor.hpp src/distributed.hpp)
+add_executable(resnet src/examples/resnet.cpp src/serializedtensor.hpp src/distributed.hpp)
 target_link_libraries(resnet
         PRIVATE
         "${TORCH_LIBRARIES}"
@@ -33,25 +25,20 @@ target_link_libraries(resnet
 )
 
 
-add_executable(nccl-test src/main.cpp)
-target_link_libraries(nccl-test
-        PRIVATE
-        "${TORCH_LIBRARIES}"
-)
+set(TEST_EXECUTABLES gather scatter basic-communication reduce allreduce)
 
+foreach(EXEC_NAME IN LISTS TEST_EXECUTABLES)
+    string(REPLACE "-" "_" SOURCE_BASE "${EXEC_NAME}")
+    set(SOURCE_FILE "${SOURCE_BASE}.cpp")
 
-set_property(TARGET mpi-test PROPERTY CXX_STANDARD 20)
-set_property(TARGET resnet PROPERTY CXX_STANDARD 20)
-set_property(TARGET nccl-test PROPERTY CXX_STANDARD 20)
-# The following code block is suggested to be used on Windows.
-# According to https://github.com/pytorch/pytorch/issues/25457,
-# the DLLs need to be copied to avoid memory errors.
-if (MSVC)
-    file(GLOB TORCH_DLLS "${TORCH_INSTALL_PREFIX}/lib/*.dll")
-    add_custom_command(TARGET example-app
-            POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            ${TORCH_DLLS}
-            $<TARGET_FILE_DIR:example-app>)
-endif (MSVC)
-# copied from docs ---------------------------------------------
+    add_executable(${EXEC_NAME} src/examples/${SOURCE_FILE})
+
+    target_link_libraries(${EXEC_NAME}
+            PRIVATE
+            "${TORCH_LIBRARIES}"
+            Boost::mpi
+            Boost::serialization
+            MPI::MPI_CXX
+    )
+
+endforeach()
