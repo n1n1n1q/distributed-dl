@@ -5,26 +5,31 @@
 
 #include "../src/distributed.hpp"
 
-class CIFAR10Dataset : public torch::data::Dataset<CIFAR10Dataset> {
+class CIFAR10Dataset : public torch::data::Dataset<CIFAR10Dataset>
+{
   std::vector<torch::Tensor> images_;
   std::vector<uint8_t> labels_;
 
 public:
-  CIFAR10Dataset(const std::string &file_path) {
+  CIFAR10Dataset(const std::string &file_path)
+  {
     std::ifstream file(file_path, std::ios::binary);
-    if (!file.is_open()) {
+    if (!file.is_open())
+    {
       throw std::runtime_error("Failed to open file");
     }
     constexpr auto image_size = 3 * 32 * 32;
     constexpr auto record_size = image_size + 1;
 
-    while (file.peek() != EOF) {
+    while (file.peek() != EOF)
+    {
       std::vector<uint8_t> buffer(record_size);
       file.read(reinterpret_cast<char *>(buffer.data()), record_size);
 
       uint8_t label = buffer[0];
 
-      if (label == 1 || label == 2 /* || label == 3 || label == 4*/) {
+      if (label == 1 || label == 2 /* || label == 3 || label == 4*/)
+      {
         labels_.push_back(buffer[0]);
         // std::cout << labels_.back() << " ";
 
@@ -35,7 +40,8 @@ public:
     std::cout << "Loaded" << labels_.size() << "images" << std::endl;
   }
 
-  torch::data::Example<> get(size_t idx) override {
+  torch::data::Example<> get(size_t idx) override
+  {
     auto image = images_[idx].to(torch::kFloat32).div(255.0);
     auto label = torch::tensor(labels_[idx], torch::kLong);
 
@@ -45,47 +51,56 @@ public:
   [[nodiscard]] torch::optional<size_t> size() const override { return images_.size(); }
 };
 
-struct ResNetBlockImpl : torch::nn::Module {
+struct ResNetBlockImpl : torch::nn::Module
+{
   int64_t stride;
   torch::nn::Conv2d conv1{nullptr}, conv2{nullptr};
   torch::nn::BatchNorm2d bn1{nullptr}, bn2{nullptr};
   torch::nn::Sequential downsample{nullptr};
 
-  ResNetBlockImpl(int64_t inplanes, int64_t planes, int64_t stride = 1) : stride{stride} {
+  ResNetBlockImpl(int64_t inplanes, int64_t planes, int64_t stride = 1) : stride{stride}
+  {
     conv1 = register_module(
-      "conv1",
-      torch::nn::Conv2d(
-        torch::nn::Conv2dOptions(
-          inplanes,
-          planes,
-          3)
-        .stride(stride)
-        .padding(1)
-        .bias(false)));
+        "conv1",
+        torch::nn::Conv2d(
+            torch::nn::Conv2dOptions(
+                inplanes,
+                planes,
+                3)
+                .stride(stride)
+                .padding(1)
+                .bias(false)));
 
     bn1 = register_module("bn1", torch::nn::BatchNorm2d(planes));
     conv2 = register_module("conv2",
                             torch::nn::Conv2d(torch::nn::Conv2dOptions(planes, planes, 3)
-                              .stride(1).padding(1).bias(false)));
+                                                  .stride(1)
+                                                  .padding(1)
+                                                  .bias(false)));
     bn2 = register_module("bn2", torch::nn::BatchNorm2d(planes));
 
     // Define downsample if needed (when stride != 1 or channel sizes differ).
-    if (stride != 1 || inplanes != planes) {
+    if (stride != 1 || inplanes != planes)
+    {
       downsample = register_module("downsample", torch::nn::Sequential(
-                                     torch::nn::Conv2d(torch::nn::Conv2dOptions(inplanes, planes, 1)
-                                       .stride(stride).bias(false)),
-                                     torch::nn::BatchNorm2d(planes)
-                                   ));
+                                                     torch::nn::Conv2d(torch::nn::Conv2dOptions(inplanes, planes, 1)
+                                                                           .stride(stride)
+                                                                           .bias(false)),
+                                                     torch::nn::BatchNorm2d(planes)));
     }
   }
 
-  torch::Tensor forward(torch::Tensor x) {
+  torch::Tensor forward(torch::Tensor x)
+  {
     auto identity = x;
     auto out = conv1->forward(identity);
     out = bn1->forward(out);
     out = conv2->forward(out);
     out = bn2->forward(out);
-    if (downsample) { identity = downsample->forward(x); }
+    if (downsample)
+    {
+      identity = downsample->forward(x);
+    }
 
     out += identity;
 
@@ -95,18 +110,19 @@ struct ResNetBlockImpl : torch::nn::Module {
 
 TORCH_MODULE(ResNetBlock);
 
-struct ResNetImpl : torch::nn::Module {
+struct ResNetImpl : torch::nn::Module
+{
   int64_t inplanes = 64;
   torch::nn::Conv2d conv1{nullptr};
   torch::nn::BatchNorm2d bn1{nullptr};
   torch::nn::Sequential layer1{nullptr}, layer2{nullptr}, layer3{nullptr}, layer4{nullptr};
   torch::nn::Linear fc{nullptr};
 
-
-  ResNetImpl(int64_t num_classes = 10) {
+  ResNetImpl(int64_t num_classes = 10)
+  {
     conv1 = register_module("conv1",
                             torch::nn::Conv2d(
-                              torch::nn::Conv2dOptions(3, inplanes, 3).stride(1).padding(1).bias(false)));
+                                torch::nn::Conv2dOptions(3, inplanes, 3).stride(1).padding(1).bias(false)));
     bn1 = register_module("bn1", torch::nn::BatchNorm2d(inplanes));
 
     layer1 = register_module("layer1", _make_layer(64, 2, 1));
@@ -117,17 +133,20 @@ struct ResNetImpl : torch::nn::Module {
     fc = register_module("fc", torch::nn::Linear(512, num_classes));
   }
 
-  torch::nn::Sequential _make_layer(int64_t planes, int64_t blocks, int64_t stride) {
+  torch::nn::Sequential _make_layer(int64_t planes, int64_t blocks, int64_t stride)
+  {
     torch::nn::Sequential layers;
     layers->push_back(ResNetBlock(inplanes, planes, stride));
     inplanes = planes;
-    for (int i = 1; i < blocks; i++) {
+    for (int i = 1; i < blocks; i++)
+    {
       layers->push_back(ResNetBlock(inplanes, planes));
     }
     return layers;
   }
 
-  torch::Tensor forward(torch::Tensor x) {
+  torch::Tensor forward(torch::Tensor x)
+  {
     x = conv1->forward(x);
     x = bn1->forward(x);
     x = relu(x);
@@ -146,17 +165,16 @@ struct ResNetImpl : torch::nn::Module {
 
 TORCH_MODULE(ResNet);
 
-
-int main(int argc, char **argv) {
+int main(int argc, char **argv)
+{
   ProcessGroupMPI pg = ProcessGroupMPI(argc, argv);
-
 
   auto numranks = pg.size();
   auto rank = pg.rank();
 
   auto dataset = CIFAR10Dataset("./cifar-10-batches-bin/data_batch_1.bin")
-      .map(torch::data::transforms::Normalize(0.5, 0.5))
-      .map(torch::data::transforms::Stack<>());
+                     .map(torch::data::transforms::Normalize(0.5, 0.5))
+                     .map(torch::data::transforms::Stack<>());
 
   auto dist_data_sampler =
       torch::data::samplers::DistributedRandomSampler(dataset.size().value(), numranks, rank, false);
@@ -176,18 +194,17 @@ int main(int argc, char **argv) {
   torch::nn::CrossEntropyLoss loss_fn;
   torch::optim::SGD optimizer(model->parameters(), torch::optim::SGDOptions(0.01).momentum(0.9));
 
-
   const size_t num_epochs = 5;
-  for (size_t epoch = 1; epoch <= num_epochs; ++epoch) {
+  for (size_t epoch = 1; epoch <= num_epochs; ++epoch)
+  {
     size_t num_correct = 0;
 
-
-    for (auto &batch: *data_loader) {
+    for (auto &batch : *data_loader)
+    {
       auto data = batch.data.to(device);
       auto target = batch.target.to(device);
 
       optimizer.zero_grad();
-
 
       auto output = model->forward(data);
 
@@ -195,14 +212,15 @@ int main(int argc, char **argv) {
 
       loss.backward();
 
-      for (auto &param: model->named_parameters()) {
+      for (auto &param : model->named_parameters())
+      {
         auto meow = param.value().mutable_grad();
 
         pg.all_reduce(meow);
       }
 
-
-      for (auto &param: model->named_parameters()) {
+      for (auto &param : model->named_parameters())
+      {
         param.value().grad().data() = param.value().grad().data() / numranks;
       }
 
@@ -214,12 +232,13 @@ int main(int argc, char **argv) {
     auto accuracy = 100.0 * num_correct / num_train_samples_per_proc;
 
     std::cout << "Accuracy in rank " << rank << " in epoch " << epoch << " - "
-        << accuracy << std::endl;
+              << accuracy << std::endl;
   }
 
   std::vector<at::Tensor> grads;
 
-  for (auto &param: model->parameters()) {
+  for (auto &param : model->parameters())
+  {
     grads.push_back(param.grad().view({-1}));
   }
 
