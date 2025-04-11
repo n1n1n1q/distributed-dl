@@ -28,6 +28,8 @@ target_link_libraries(resnet
 
 set(TEST_EXECUTABLES gather scatter basic-communication reduce allreduce)
 
+# ------------------------------------------------------------------------
+
 find_package(CUDAToolkit REQUIRED)
 
 set(NCCL_ROOT "" CACHE PATH "Path to NCCL installation directory")
@@ -51,13 +53,14 @@ if (NOT NCCL_LIBRARY)
 endif ()
 
 add_executable(nccl-test src/distributed.hpp src/nccl_distr.cuh src/serializedtensor.hpp src/examples/nccl_test.cpp)
-target_include_directories(nccl-test PRIVATE ${NCCL_INCLUDE_DIR})
+target_include_directories(nccl-test PRIVATE ${NCCL_INCLUDE_DIR} ${CUDAToolkit_INCLUDE_DIRS})
 target_link_libraries(nccl-test
         PRIVATE
         "${TORCH_LIBRARIES}"
         "${NCCL_Library}"
         CUDA::cudart
         Boost::mpi
+        Boost::serialization
 )
 
 foreach (EXEC_NAME IN LISTS TEST_EXECUTABLES)
