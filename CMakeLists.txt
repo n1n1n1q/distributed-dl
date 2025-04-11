@@ -63,6 +63,17 @@ target_link_libraries(nccl-test
         Boost::serialization
 )
 
+add_executable(resnet-cuda src/distributed.hpp src/nccl_distr.cuh src/serializedtensor.hpp src/examples/resnet-cuda.cpp)
+target_include_directories(resnet-cuda PRIVATE ${NCCL_INCLUDE_DIR} ${CUDAToolkit_INCLUDE_DIRS})
+target_link_libraries(resnet-cuda
+        PRIVATE
+        "${TORCH_LIBRARIES}"
+        "${NCCL_Library}"
+        CUDA::cudart
+        Boost::mpi
+        Boost::serialization
+)
+
 foreach (EXEC_NAME IN LISTS TEST_EXECUTABLES)
     string(REPLACE "-" "_" SOURCE_BASE "${EXEC_NAME}")
     set(SOURCE_FILE "${SOURCE_BASE}.cpp")

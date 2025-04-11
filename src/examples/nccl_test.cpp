@@ -79,14 +79,37 @@ int main(int argc, char **argv) {
 
   ProcessGroupNCCL pg(argc, argv);
 
+  auto device = torch::Device(torch::kCUDA);
+
   auto rank = pg.rank();
   auto size = pg.size();
 
-  auto t = torch::rand({2, 2}, torch::kCUDA);
+  auto t = torch::rand({2, 2}, torch::TensorOptions().requires_grad(true).device(device));
+  auto m = t * t + 3;
+  auto out = m.mean();
+  out.backward();
+
   pg.broadcast(t, 0);
   if (rank == 0) {
-    std::cout << "after bcast " << ' ' << rank << " \n" << t.cpu() << std::endl;
+    std::cout << "--------------" << std::endl;
+    std::cout << "sending:\n" << t << std::endl;
+    std::cout << "with gradient:\n" << t.grad() << std::endl;
+    std::cout << "--------------\n" << std::endl;
+    // pg.send(t, 1);
   } else if (rank == 1) {
-    std::cout << "after bcast " << ' ' << rank << " \n" << t.cpu() << std::endl;
+    auto m = t * t * t + 3;
+    auto out = m.max();
+    out.backward();
+
+    std::cout << "--------------" << std::endl;
+    std::cout << "before:\n" << t << std::endl;
+    std::cout << "before with gradient:\n" << t.grad() << std::endl;
+    std::cout << "--------------\n" << std::endl;
+
+    // pg.recv(t, 0);
+    std::cout << "--------------" << std::endl;
+    std::cout << "recieved:\n" << t << std::endl;
+    std::cout << "with gradient:\n" << t.grad() << std::endl;
+    std::cout << "--------------\n" << std::endl;
   }
 }
