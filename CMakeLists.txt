@@ -25,16 +25,59 @@ target_link_libraries(resnet
 )
 
 
-set(TEST_EXECUTABLES gather scatter basic-communication reduce allreduce)
+set(MPI gather scatter basic-communication reduce allreduce)
 
-foreach(EXEC_NAME IN LISTS TEST_EXECUTABLES)
+foreach(EXEC_NAME IN LISTS MPI)
     string(REPLACE "-" "_" SOURCE_BASE "${EXEC_NAME}")
     set(SOURCE_FILE "${SOURCE_BASE}.cpp")
 
-    add_executable(${EXEC_NAME} src/examples/${SOURCE_FILE})
+    add_executable(${EXEC_NAME} src/examples/mpi/${SOURCE_FILE})
 
     target_link_libraries(${EXEC_NAME}
             PRIVATE
+            "${TORCH_LIBRARIES}"
+            Boost::mpi
+            Boost::serialization
+            MPI::MPI_CXX
+    )
+
+endforeach()
+
+
+
+# ---------------------------------
+
+find_package(CUDAToolkit REQUIRED)
+
+set(NCCL_ROOT "" CACHE PATH "Path to NCCL installation directory")
+find_path(NCCL_INCLUDE_DIR
+        nccl.h
+        HINTS ${NCCL_ROOT}/include ${CUDAToolkit_INCLUDE_DIRS}
+        PATHS /usr/include /usr/local/include
+)
+find_library(NCCL_LIBRARY
+        nccl
+        HINTS ${NCCL_ROOT}/lib ${NCCL_ROOT}/lib64 ${CUDAToolkit_LIBRARY_DIR}
+        PATHS /usr/lib /usr/lib64 /usr/local/lib
+)
+
+if (NOT NCCL_INCLUDE_DIR)
+    message(FATAL_ERROR "NCCL headers (nccl.h) not found. Set -DNCCL_ROOT=/path/to/nccl.")
+endif ()
+if (NOT NCCL_LIBRARY)
+    message(FATAL_ERROR "NCCL library (libnccl.so) not found. Set -DNCCL_ROOT=/path/to/nccl.")
+endif ()
+
+
+set(NCCL gather scatter basic-communication reduce allreduce)
+
+foreach(EXEC_NAME IN LISTS NCCL)
+    string(REPLACE "-" "_" SOURCE_BASE "${EXEC_NAME}")
+    set(SOURCE_FILE "${SOURCE_BASE}.cpp")
+
+    add_executable(${EXEC_NAME} src/examples/nccl/${SOURCE_FILE})
+    target_include_directories(${EXEC_NAME} PRIVATE ${NCCL_INCLUDE_DIR} ${CUDAToolkit_INCLUDE_DIRS})
+    target_link_libraries(${EXEC_NAME}
             "${TORCH_LIBRARIES}"
             Boost::mpi
             Boost::serialization
