@@ -154,10 +154,16 @@ TORCH_MODULE(ResNet);
 
 
 int main(int argc, char **argv) {
-  ProcessGroupMPI pg = ProcessGroupMPI(argc, argv);
+  bool is_cuda = true;
+  DistributedTrainer dt(argc, argv, is_cuda);
 
-  auto numranks = pg.size();
-  auto rank = pg.rank();
+  torch::Device device{torch::kCPU};
+  if (is_cuda) {
+    device = torch::Device(torch::kCUDA);
+  }
+
+  auto numranks = dt.size();
+  auto rank = dt.rank();
 
   auto dataset = CIFAR10Dataset("./cifar-10-batches-bin/data_batch_1.bin")
       .map(torch::data::transforms::Normalize(0.5, 0.5))
@@ -173,7 +179,6 @@ int main(int argc, char **argv) {
   auto data_loader = make_data_loader(std::move(dataset), dist_data_sampler, batch_size_per_proc);
   torch::manual_seed(0);
 
-  torch::Device device{torch::kCPU};
 
   ResNet model{400};
   model->to(device);
@@ -182,7 +187,7 @@ int main(int argc, char **argv) {
   torch::optim::SGD optimizer(model->parameters(), torch::optim::SGDOptions(0.01).momentum(0.9));
 
 
-  const size_t num_epochs = 5;
+  constexpr size_t num_epochs = 2;
   for (size_t epoch = 1; epoch <= num_epochs; ++epoch) {
     model->train();
     size_t num_correct = 0;
@@ -195,19 +200,13 @@ int main(int argc, char **argv) {
 
       auto output = model->forward(data);
 
-      synchronize_batch_norms(*model, pg);
 
       auto loss = loss_fn(output, target);
 
       loss.backward();
 
-
-      for (auto &param: model->named_parameters()) {
-        auto meow = param.value().mutable_grad();
-
-        pg.all_reduce(meow);
-        meow.data() = meow.data() / numranks;
-      }
+      dt.synchronize_batch_norms(*model);
+      dt.sync_train_step(model);
 
       optimizer.step();
 
