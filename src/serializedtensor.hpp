@@ -43,7 +43,7 @@ private:
     ar & num_bytes;
     ar & sizes;
     ar & scalar_type;
-    ar & boost::serialization::make_array(static_cast<char *>(cont_tensor.data_ptr()), num_bytes);
+    ar & boost::serialization::make_array(reinterpret_cast<char *>(cont_tensor.data_ptr()), num_bytes);
   }
 };
 

@@ -13,6 +13,31 @@ static auto default_add = [](const torch::Tensor &a, const torch::Tensor &b) -> 
   return torch::add(a, b);
 };
 
+class SerializedTensorRequest {
+  boost::mpi::request request;
+  std::unique_ptr<SerializedTensor> ser_tensor;
+  torch::Tensor &tensor;
+
+  void unpack_tensor() {
+    ser_tensor->toTensor(tensor);
+    ser_tensor.reset();
+  }
+
+public:
+  SerializedTensorRequest(boost::mpi::request &&req, std::unique_ptr<SerializedTensor> &&st,
+                          torch::Tensor &req_tensor) : request(std::move(req)),
+                                                       ser_tensor(std::move(st)), tensor(req_tensor) {
+  }
+
+  boost::mpi::status wait() {
+    auto status = request.wait();
+
+    unpack_tensor();
+
+    return status;
+  }
+};
+
 
 class ProcessGroupMPI {
   std::unique_ptr<boost::mpi::environment> env_ptr = nullptr;
@@ -63,14 +88,27 @@ public:
     int rank = this->rank();
     int size = this->size();
     torch::Tensor result{torch::zeros_like(tensor)};
+
+
     if (dest == rank) {
+      std::vector received_tensors(size, torch::zeros_like(result));
+      received_tensors[dest] = tensor;
+
+      std::vector<SerializedTensorRequest> requests;
+      requests.reserve(size);
       for (int i = 0; i < size; ++i) {
         if (i != dest) {
-          torch::Tensor received{torch::zeros_like(tensor)};
-          recv(received, i);
-          result = op(result, received);
+          requests.emplace_back(irecv(received_tensors[i], i));
         }
       }
+      for (auto &request: requests) {
+        request.wait();
+      }
+      torch::Tensor concatenated = torch::stack(received_tensors, /*dim=*/0);
+
+      result = concatenated.sum(0);
+
+
       for (int i = 0; i < size; ++i) {
         if (i != dest) {
           send(result, i);
@@ -149,9 +187,9 @@ public:
     return world_ptr->isend(dest, 0, tens);
   }
 
-  inline boost::mpi::request irecv(torch::Tensor &tensor, int source) {
-    SerializedTensor received{torch::zeros_like(tensor)};
-    return world_ptr->irecv(source, 0, received);
+  inline SerializedTensorRequest irecv(torch::Tensor &tensor, int source) {
+    auto received = std::make_unique<SerializedTensor>(torch::zeros_like(tensor));
+    return SerializedTensorRequest{world_ptr->irecv(source, 0, *received), std::move(received), tensor};
   }
 
 

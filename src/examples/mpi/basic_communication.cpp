@@ -65,17 +65,11 @@ void test_async_send_recv(ProcessGroupMPI &pg) {
     std::cout << "Rank 0 asynchronously sending tensor:\n"
         << tensor << std::endl;
     auto request = pg.isend(tensor, 1);
-    std::cout << "Rank " << rank << " asynchronously sent tensor and waiting" << std::endl;
     request.wait();
-    std::cout << "Rank " << rank << " asynchronously sent tensor and success" << std::endl;
   } else if (rank == 1) {
-    std::cout << "Rank 1 asynchronously preparing receiving tensor:" << std::endl;
     torch::Tensor tensor = torch::zeros({2, 2}, torch::kFloat32);
-    std::cout << "Rank 1 asynchronously receiving tensor:" << std::endl;
     auto request = pg.irecv(tensor, 0);
-    std::cout << "Rank 1 lol:" << std::endl;
     request.wait();
-    std::cout << "Rank 1 meow:" << std::endl;
     std::cout << "Rank 1 asynchronously received tensor:\n"
         << tensor << std::endl;
   }
@@ -116,8 +110,8 @@ int main(int argc, char **argv) {
 
   test_send_recv(pg);
   test_broadcast(pg);
-  // test_async_send_recv(pg);
-  test_default_async(argc, argv);
+  test_async_send_recv(pg);
+  // test_default_async(argc, argv);
 
   return 0;
 }
