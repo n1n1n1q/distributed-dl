@@ -15,7 +15,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 ### Include Directories ###
 include_directories(${PROJECT_SOURCE_DIR}/src)
 
-add_executable(resnet src/examples/resnet.cpp src/serializedtensor.hpp src/distributed.hpp)
+add_executable(resnet src/examples/mpi/resnet.cpp src/serializedtensor.hpp src/distributed.hpp)
 target_link_libraries(resnet
         PRIVATE
         "${TORCH_LIBRARIES}"
@@ -75,9 +75,9 @@ foreach(EXEC_NAME IN LISTS NCCL)
     string(REPLACE "-" "_" SOURCE_BASE "${EXEC_NAME}")
     set(SOURCE_FILE "${SOURCE_BASE}.cpp")
 
-    add_executable(${EXEC_NAME} src/examples/nccl/${SOURCE_FILE})
-    target_include_directories(${EXEC_NAME} PRIVATE ${NCCL_INCLUDE_DIR} ${CUDAToolkit_INCLUDE_DIRS})
-    target_link_libraries(${EXEC_NAME}
+    add_executable(${EXEC_NAME}_gpu src/examples/nccl/${SOURCE_FILE})
+    target_include_directories(${EXEC_NAME}_gpu PRIVATE ${NCCL_INCLUDE_DIR} ${CUDAToolkit_INCLUDE_DIRS})
+    target_link_libraries(${EXEC_NAME}_gpu
             "${TORCH_LIBRARIES}"
             Boost::mpi
             Boost::serialization
