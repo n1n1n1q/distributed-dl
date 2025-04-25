@@ -15,21 +15,9 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 ### Include Directories ###
 include_directories(${PROJECT_SOURCE_DIR}/src)
 
-# Common test executable names
-set(TEST_EXECUTABLES gather scatter basic-communication reduce allreduce)
+set(MPI gather scatter basic-communication reduce allreduce)
 
-# MPI applications
-add_executable(resnet src/examples/mpi/resnet.cpp src/serializedtensor.hpp src/distributed.hpp)
-target_link_libraries(resnet
-        PRIVATE
-        "${TORCH_LIBRARIES}"
-        Boost::mpi
-        Boost::serialization
-        MPI::MPI_CXX
-)
-
-# MPI test executables
-foreach(EXEC_NAME IN LISTS TEST_EXECUTABLES)
+foreach(EXEC_NAME IN LISTS MPI)
     string(REPLACE "-" "_" SOURCE_BASE "${EXEC_NAME}")
     set(SOURCE_FILE "${SOURCE_BASE}.cpp")
 
@@ -42,10 +30,12 @@ foreach(EXEC_NAME IN LISTS TEST_EXECUTABLES)
             Boost::serialization
             MPI::MPI_CXX
     )
+
 endforeach()
 
+
+
 # ---------------------------------
-# CUDA and NCCL configuration
 
 find_package(CUDAToolkit REQUIRED)
 
@@ -68,35 +58,24 @@ if (NOT NCCL_LIBRARY)
     message(FATAL_ERROR "NCCL library (libnccl.so) not found. Set -DNCCL_ROOT=/path/to/nccl.")
 endif ()
 
-# NCCL test executables
-foreach(EXEC_NAME IN LISTS TEST_EXECUTABLES)
+
+set(NCCL gather scatter basic-communication reduce allreduce)
+
+foreach(EXEC_NAME IN LISTS NCCL)
     string(REPLACE "-" "_" SOURCE_BASE "${EXEC_NAME}")
     set(SOURCE_FILE "${SOURCE_BASE}.cpp")
 
     add_executable(${EXEC_NAME}_gpu src/examples/nccl/${SOURCE_FILE})
     target_include_directories(${EXEC_NAME}_gpu PRIVATE ${NCCL_INCLUDE_DIR} ${CUDAToolkit_INCLUDE_DIRS})
     target_link_libraries(${EXEC_NAME}_gpu
-            PRIVATE
             "${TORCH_LIBRARIES}"
             Boost::mpi
             Boost::serialization
             MPI::MPI_CXX
-            "${NCCL_LIBRARY}"
-            CUDA::cudart
     )
+
 endforeach()
 
-# Additional CUDA applications
-add_executable(nccl-test src/examples/nccl_test.cpp src/distributed.hpp src/nccl_distr.cuh src/serializedtensor.hpp)
-target_include_directories(nccl-test PRIVATE ${NCCL_INCLUDE_DIR} ${CUDAToolkit_INCLUDE_DIRS})
-target_link_libraries(nccl-test
-        PRIVATE
-        "${TORCH_LIBRARIES}"
-        "${NCCL_LIBRARY}"
-        CUDA::cudart
-        Boost::mpi
-        Boost::serialization
-)
 
 add_executable(resnet-cuda src/examples/resnet-cuda.cpp src/distributed.hpp src/nccl_distr.cuh src/serializedtensor.hpp)
 target_include_directories(resnet-cuda PRIVATE ${NCCL_INCLUDE_DIR} ${CUDAToolkit_INCLUDE_DIRS})
