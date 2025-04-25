@@ -235,6 +235,13 @@ public:
     CUDACHECK(cudaStreamSynchronize(stream));
   }
 
+  inline double default_all_reduce(double precision) {
+    double mean_precision;
+    boost::mpi::all_reduce(*world_ptr, precision, mean_precision, std::plus<double>());
+
+    return mean_precision / this->size();
+  }
+
   ~ProcessGroupNCCL() {
     CUDACHECK(cudaStreamSynchronize(stream));
     CUDACHECK(cudaStreamDestroy(stream));

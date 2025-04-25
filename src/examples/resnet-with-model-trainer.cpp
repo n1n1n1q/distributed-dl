@@ -154,7 +154,7 @@ TORCH_MODULE(ResNet);
 
 
 int main(int argc, char **argv) {
-  bool is_cuda = true;
+  bool is_cuda = false;
   DistributedTrainer dt(argc, argv, is_cuda);
 
   torch::Device device{torch::kCPU};
@@ -187,7 +187,7 @@ int main(int argc, char **argv) {
   torch::optim::SGD optimizer(model->parameters(), torch::optim::SGDOptions(0.01).momentum(0.9));
 
 
-  constexpr size_t num_epochs = 2;
+  constexpr size_t num_epochs = 5;
   for (size_t epoch = 1; epoch <= num_epochs; ++epoch) {
     model->train();
     size_t num_correct = 0;
@@ -213,7 +213,7 @@ int main(int argc, char **argv) {
       auto guess = output.argmax(1);
       num_correct += torch::sum(guess.eq_(target)).item<int64_t>();
     }
-    auto accuracy = 100.0 * num_correct / num_train_samples_per_proc;
+    auto accuracy = dt.sync_precision(100 * num_correct / num_train_samples_per_proc);
 
     std::cout << "Accuracy in rank " << rank << " in epoch " << epoch << " - "
         << accuracy << std::endl;

@@ -83,6 +83,13 @@ public:
     tensor = result;
   }
 
+  inline double default_all_reduce(double precision) {
+    double mean_precision;
+    boost::mpi::all_reduce(*world_ptr, precision, mean_precision, std::plus<double>());
+
+    return mean_precision / this->size();
+  }
+
   template<typename F = decltype(default_add)>
   inline void reduce(torch::Tensor &tensor, int dest = 0, F op = default_add) {
     int rank = this->rank();
@@ -225,6 +232,10 @@ public
         meow.data() = meow.data() / pg_mpi->size();
       }
     }
+  }
+
+  double sync_precision(double precision) {
+    return cuda ? pg_nccl->default_all_reduce(precision) : pg_mpi->default_all_reduce(precision);
   }
 };
 
