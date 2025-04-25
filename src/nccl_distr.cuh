@@ -176,55 +176,53 @@ public:
         op, comm, stream));
   }
 
-  // void gather(torch::Tensor &send_tensor, torch::Tensor &recv_tensor, int root) {
-  //   size_t count = send_tensor.numel();
-  //   NCCLCHECK(ncclGroupStart());
-  //   if (rank() == root) {
-  //     auto *src = send_tensor.data_ptr();
-  //     auto *dest = recv_tensor.data_ptr() + root * count;
-  //     CUDACHECK(cudaMemcpyAsync(dest, src, count * sizeof(float),
-  //       cudaMemcpyDeviceToDevice, stream));
-  //     for (int i = 0; i < size(); i++) {
-  //       if (i == root)
-  //         continue;
-  //       float *recv_ptr = recv_tensor.data_ptr<float>() + i * count;
-  //       NCCLCHECK(ncclRecv(recv_ptr, count, ncclFloat, i, comm, stream));
-  //     }
-  //   } else {
-  //     NCCLCHECK(ncclSend(send_tensor.data_ptr<float>(), count, ncclFloat, root, comm, stream));
-  //   }
-  //   NCCLCHECK(ncclGroupEnd());
-  //   CUDACHECK(cudaStreamSynchronize(stream));
-  // }
+  void gather(torch::Tensor &send_tensor, torch::Tensor &recv_tensor, int root) {
+    const int rank = this->rank();
+    const int size = this->size();
+    const int64_t count = send_tensor.numel();
+    
+    NCCLCHECK(ncclGroupStart());
+    if (rank == root) {
+      auto src = send_tensor.data_ptr();
+      auto dest = static_cast<char*>(recv_tensor.data_ptr()) + (root * count * send_tensor.element_size());
+      CUDACHECK(cudaMemcpyAsync(dest, src, count * send_tensor.element_size(),
+        cudaMemcpyDeviceToDevice, stream));
+        
+      for (int i = 0; i < size; i++) {
+        if (i == root)
+          continue;
+        auto recv_ptr = static_cast<char*>(recv_tensor.data_ptr()) + (i * count * send_tensor.element_size());
+        NCCLCHECK(ncclRecv(recv_ptr, count, get_nccl_datatype(send_tensor.scalar_type()), i, comm, stream));
+      }
+    } else {
+      NCCLCHECK(ncclSend(send_tensor.data_ptr(), count, get_nccl_datatype(send_tensor.scalar_type()), root, comm, stream));
+    }
+    NCCLCHECK(ncclGroupEnd());
+    CUDACHECK(cudaStreamSynchronize(stream));
+  }
 
-  // inline void scatter(torch::Tensor &tensor, int root = 0)
-
-  // {
-  //     size_t count = recv_tensor.numel();
-  //     NCCLCHECK(ncclGroupStart());
-  //     if (rank == root)
-  //     {
-  //         for (int i = 0; i < nranks; i++)
-  //         {
-  //             float *src_ptr = send_tensor.data_ptr<float>() + i * count;
-  //             if (i == root)
-  //             {
-  //                 CUDACHECK(cudaMemcpyAsync(recv_tensor.data_ptr<float>(), src_ptr,
-  //                                           count * sizeof(float), cudaMemcpyDeviceToDevice, stream));
-  //             }
-  //             else
-  //             {
-  //                 NCCLCHECK(ncclSend(src_ptr, count, ncclFloat, i, comm, stream));
-  //             }
-  //         }
-  //     }
-  //     else
-  //     {
-  //         NCCLCHECK(ncclRecv(recv_tensor.data_ptr<float>(), count, ncclFloat, root, comm, stream));
-  //     }
-  //     NCCLCHECK(ncclGroupEnd());
-  //     CUDACHECK(cudaStreamSynchronize(stream));
-  // }
+  void scatter(torch::Tensor &recv_tensor, torch::Tensor &send_tensor, int root) {
+    const int rank = this->rank();
+    const int size = this->size();
+    const int64_t count = recv_tensor.numel();
+    
+    NCCLCHECK(ncclGroupStart());
+    if (rank == root) {
+      for (int i = 0; i < size; i++) {
+        auto src_ptr = static_cast<char*>(send_tensor.data_ptr()) + (i * count * send_tensor.element_size());
+        if (i == root) {
+          CUDACHECK(cudaMemcpyAsync(recv_tensor.data_ptr(), src_ptr,
+                                   count * send_tensor.element_size(), cudaMemcpyDeviceToDevice, stream));
+        } else {
+          NCCLCHECK(ncclSend(src_ptr, count, get_nccl_datatype(send_tensor.scalar_type()), i, comm, stream));
+        }
+      }
+    } else {
+      NCCLCHECK(ncclRecv(recv_tensor.data_ptr(), count, get_nccl_datatype(recv_tensor.scalar_type()), root, comm, stream));
+    }
+    NCCLCHECK(ncclGroupEnd());
+    CUDACHECK(cudaStreamSynchronize(stream));
+  }
 
   void barrier() const {
     float *dummy_recv;
