@@ -32,7 +32,7 @@ public:
     return world_ptr->rank();
   }
 
-  inline void send(torch::Tensor &tensor, int dest) {
+  inline void send(torch::Tensor &tensor, const int dest) {
     SerializedTensor tens{tensor};
     world_ptr->send(dest, 0, tens);
   }
@@ -153,6 +153,7 @@ public:
     SerializedTensor received{torch::zeros_like(tensor)};
     return world_ptr->irecv(source, 0, received);
   }
+
 
   inline void barrier() {
     world_ptr->barrier();
