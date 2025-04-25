@@ -1,10 +1,11 @@
-#include <driver_types.h>
 #include <fstream>
 #include <torch/torch.h>
 #include <iostream>
 #include <boost/mpi.hpp>
 
+#include "nccl_distr.cuh"
 #include "../src/distributed.hpp"
+
 
 class CIFAR10Dataset : public torch::data::Dataset<CIFAR10Dataset> {
   std::vector<torch::Tensor> images_;
@@ -51,7 +52,6 @@ struct ResNetBlockImpl : torch::nn::Module {
   torch::nn::Conv2d conv1{nullptr}, conv2{nullptr};
   torch::nn::BatchNorm2d bn1{nullptr}, bn2{nullptr};
   torch::nn::Sequential downsample{nullptr};
-
 
   ResNetBlockImpl(int64_t inplanes, int64_t planes, int64_t stride = 1) : stride{stride} {
     conv1 = register_module(
@@ -108,7 +108,6 @@ struct ResNetImpl : torch::nn::Module {
   torch::nn::Sequential layer1{nullptr}, layer2{nullptr}, layer3{nullptr}, layer4{nullptr};
   torch::nn::Linear fc{nullptr};
 
-
   ResNetImpl(int64_t num_classes = 10) {
     conv1 = register_module("conv1",
                             torch::nn::Conv2d(
@@ -152,12 +151,13 @@ struct ResNetImpl : torch::nn::Module {
 
 TORCH_MODULE(ResNet);
 
-
 int main(int argc, char **argv) {
-  ProcessGroupMPI pg = ProcessGroupMPI(argc, argv);
+  ProcessGroupNCCL pg = ProcessGroupNCCL(argc, argv);
 
   auto numranks = pg.size();
   auto rank = pg.rank();
+
+  torch::Device device = torch::Device(torch::kCUDA);
 
   auto dataset = CIFAR10Dataset("./cifar-10-batches-bin/data_batch_1.bin")
       .map(torch::data::transforms::Normalize(0.5, 0.5))
@@ -173,7 +173,6 @@ int main(int argc, char **argv) {
   auto data_loader = make_data_loader(std::move(dataset), dist_data_sampler, batch_size_per_proc);
   torch::manual_seed(0);
 
-  torch::Device device{torch::kCPU};
 
   ResNet model{400};
   model->to(device);
@@ -181,10 +180,8 @@ int main(int argc, char **argv) {
   torch::nn::CrossEntropyLoss loss_fn;
   torch::optim::SGD optimizer(model->parameters(), torch::optim::SGDOptions(0.01).momentum(0.9));
 
-
   const size_t num_epochs = 5;
   for (size_t epoch = 1; epoch <= num_epochs; ++epoch) {
-    model->train();
     size_t num_correct = 0;
 
     for (auto &batch: *data_loader) {
@@ -195,18 +192,19 @@ int main(int argc, char **argv) {
 
       auto output = model->forward(data);
 
-      synchronize_batch_norms(*model, pg);
-
       auto loss = loss_fn(output, target);
 
       loss.backward();
-
 
       for (auto &param: model->named_parameters()) {
         auto meow = param.value().mutable_grad();
 
         pg.all_reduce(meow);
-        meow.data() = meow.data() / numranks;
+      }
+      pg.barrier();
+
+      for (auto &param: model->named_parameters()) {
+        param.value().grad().data() = param.value().grad().data() / numranks;
       }
 
       optimizer.step();
