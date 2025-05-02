@@ -5,9 +5,9 @@
 #include <torch/torch.h>
 
 #include "nccl_distr.cuh"
-#include "serializedtensor.hpp"
+// #include "serializedtensor.hpp"
 
-#define SerializedTensor SerializedTensorCPU_impl
+// #define SerializedTensor SerializedTensorCPU_impl
 
 static auto default_add = [](const torch::Tensor &a, const torch::Tensor &b) -> torch::Tensor {
   return torch::add(a, b);
@@ -32,16 +32,58 @@ public:
     return world_ptr->rank();
   }
 
-  inline void send(torch::Tensor &tensor, int dest) {
-    SerializedTensor tens{tensor};
-    world_ptr->send(dest, 0, tens);
+  inline void send(torch::Tensor &tensor, const int dest) {
+    switch (tensor.scalar_type()) {
+      case torch::kFloat32: {
+        world_ptr->send(dest, 0, tensor.data_ptr<float>(), tensor.numel());
+        break;
+      }
+      case torch::kFloat64: {
+        world_ptr->send(dest, 0, tensor.data_ptr<double>(), tensor.numel());
+        break;
+      }
+      case torch::kInt32: {
+        world_ptr->send(dest, 0, tensor.data_ptr<int32_t>(), tensor.numel());
+        break;
+      }
+      case torch::kInt64: {
+        world_ptr->send(dest, 0, tensor.data_ptr<int64_t>(), tensor.numel());
+        break;
+      }
+      case at::kBool: {
+        world_ptr->send(dest, 0, tensor.data_ptr<bool>(), tensor.numel());
+        break;
+      }
+      default:
+        throw std::runtime_error("Unsupported ScalarType");
+    }
   }
 
   inline void recv(torch::Tensor &tensor, int source) {
-    SerializedTensor received{torch::zeros_like(tensor)};
-
-    world_ptr->recv(source, 0, received);
-    received.toTensor(tensor);
+    switch (tensor.scalar_type()) {
+      case torch::kFloat32: {
+        world_ptr->recv(source, 0, tensor.mutable_data_ptr<float>(), tensor.numel());
+        break;
+      }
+      case torch::kFloat64: {
+        world_ptr->recv(source, 0, tensor.mutable_data_ptr<double>(), tensor.numel());
+        break;
+      }
+      case torch::kInt32: {
+        world_ptr->recv(source, 0, tensor.mutable_data_ptr<int32_t>(), tensor.numel());
+        break;
+      }
+      case torch::kInt64: {
+        world_ptr->recv(source, 0, tensor.mutable_data_ptr<int64_t>(), tensor.numel());
+        break;
+      }
+      case at::kBool: {
+        world_ptr->recv(source, 0, tensor.mutable_data_ptr<bool>(), tensor.numel());
+        break;
+      }
+      default:
+        throw std::runtime_error("Unsupported ScalarType");
+    }
   }
 
   inline void broadcast(torch::Tensor &tensor, int source = 0) {
@@ -60,21 +102,70 @@ public:
 
   template<typename F = decltype(default_add)>
   inline void all_reduce(torch::Tensor &tensor, int dest = 0, F op = default_add) {
+#ifdef BOOST_ALLREDUCE_IMPL
+    switch (tensor.scalar_type()) {
+      case torch::kFloat32: {
+        boost::mpi::all_reduce(*world_ptr, boost::mpi::inplace_t<float *>(tensor.mutable_data_ptr<float>()),
+                               tensor.numel(), std::plus<float>());
+        break;
+      }
+      case torch::kFloat64: {
+
+        boost::mpi::all_reduce(*world_ptr, boost::mpi::inplace_t<double *>(tensor.mutable_data_ptr<double>()),
+                               tensor.numel(), std::plus<double>());
+        break;
+      }
+      case torch::kInt32: {
+
+        boost::mpi::all_reduce(*world_ptr, boost::mpi::inplace_t<int32_t *>(tensor.mutable_data_ptr<int32_t>()),
+                               tensor.numel(), std::plus<int32_t>());
+        break;
+      }
+      case torch::kInt64: {
+
+        boost::mpi::all_reduce(*world_ptr, boost::mpi::inplace_t<int64_t *>(tensor.mutable_data_ptr<int64_t>()),
+                               tensor.numel(), std::plus<int64_t>());
+        break;
+      }
+      default:
+        throw std::runtime_error("Unsupported ScalarType");
+    }
+    return;
+#endif
+
     int rank = this->rank();
     int size = this->size();
     torch::Tensor result{torch::zeros_like(tensor)};
+
+
     if (dest == rank) {
+      std::vector received_tensors(size, torch::zeros_like(result));
+      received_tensors[dest] = tensor;
+
+      std::vector<boost::mpi::request> requests;
+      requests.reserve(size);
       for (int i = 0; i < size; ++i) {
         if (i != dest) {
-          torch::Tensor received{torch::zeros_like(tensor)};
-          recv(received, i);
-          result = op(result, received);
+          requests.emplace_back(irecv(received_tensors[i], i));
         }
       }
+      for (auto &request: requests) {
+        request.wait();
+      }
+      torch::Tensor concatenated = torch::stack(received_tensors, /*dim=*/0);
+
+      result = concatenated.sum(0);
+
+
+      std::vector<boost::mpi::request> send_requests(size - 1);
       for (int i = 0; i < size; ++i) {
         if (i != dest) {
-          send(result, i);
+          send_requests.emplace_back(isend(result, i));
         }
+      }
+
+      for (auto &request: send_requests) {
+        request.wait();
       }
     } else {
       send(tensor, dest);
@@ -145,14 +236,50 @@ public:
   }
 
   inline boost::mpi::request isend(torch::Tensor &tensor, int dest) {
-    SerializedTensor tens{tensor};
-    return world_ptr->isend(dest, 0, tens);
+    switch (tensor.scalar_type()) {
+      case torch::kFloat32: {
+        return world_ptr->isend(dest, 0, tensor.data_ptr<float>(), tensor.numel());
+      }
+      case torch::kFloat64: {
+        return world_ptr->isend(dest, 0, tensor.data_ptr<double>(), tensor.numel());
+      }
+      case torch::kInt32: {
+        return world_ptr->isend(dest, 0, tensor.data_ptr<int32_t>(), tensor.numel());
+      }
+      case torch::kInt64: {
+        return world_ptr->isend(dest, 0, tensor.data_ptr<int64_t>(), tensor.numel());
+      }
+      case at::kBool: {
+        return world_ptr->isend(dest, 0, tensor.data_ptr<bool>(), tensor.numel());
+      }
+      default:
+        throw std::runtime_error("Unsupported ScalarType");
+    }
   }
 
+
   inline boost::mpi::request irecv(torch::Tensor &tensor, int source) {
-    SerializedTensor received{torch::zeros_like(tensor)};
-    return world_ptr->irecv(source, 0, received);
+    switch (tensor.scalar_type()) {
+      case torch::kFloat32: {
+        return world_ptr->irecv(source, 0, tensor.mutable_data_ptr<float>(), tensor.numel());
+      }
+      case torch::kFloat64: {
+        return world_ptr->irecv(source, 0, tensor.mutable_data_ptr<double>(), tensor.numel());
+      }
+      case torch::kInt32: {
+        return world_ptr->irecv(source, 0, tensor.mutable_data_ptr<int32_t>(), tensor.numel());
+      }
+      case torch::kInt64: {
+        return world_ptr->irecv(source, 0, tensor.mutable_data_ptr<int64_t>(), tensor.numel());
+      }
+      case at::kBool: {
+        return world_ptr->irecv(source, 0, tensor.mutable_data_ptr<bool>(), tensor.numel());
+      }
+      default:
+        throw std::runtime_error("Unsupported ScalarType");
+    }
   }
+
 
   inline void barrier() {
     world_ptr->barrier();
