@@ -103,6 +103,30 @@ void test_default_async(int argc, char **argv) {
   }
 }
 
+void test_no_serialization(int argc, char **argv) {
+  boost::mpi::environment env(argc, argv);
+  boost::mpi::communicator world;
+
+  auto size = world.size();
+  auto rank = world.rank();
+
+  if (rank == 0) {
+    auto tensor = torch::rand({2, 2}, torch::kFloat64);
+
+
+    std::cout
+        <<
+        "---\nsent\n" << tensor << "---" << std::endl;
+
+
+    world.send(1, 0, tensor.data_ptr<double>(), 4);
+  } else if (rank == 1) {
+    auto tensor = torch::zeros({2, 2}, torch::kFloat64);
+    world.recv(0, 0, tensor.mutable_data_ptr<double>(), 4);
+    std::cout << "---\nreceived\n" << tensor << "---" << std::endl;
+  }
+}
+
 int main(int argc, char **argv) {
   ProcessGroupMPI pg(argc, argv);
 
@@ -112,6 +136,7 @@ int main(int argc, char **argv) {
   test_broadcast(pg);
   test_async_send_recv(pg);
   // test_default_async(argc, argv);
+  // test_no_serialization(argc, argv);
 
   return 0;
 }
