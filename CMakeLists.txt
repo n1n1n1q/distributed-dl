@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
 project(distributed_dl LANGUAGES CXX)
 
+# set(CUDACXX "/usr/local/cuda-12.8/bin/nvcc")
+# set(CMAKE_CUDA_COMPILER "/usr/local/cuda-12.8/bin/nvcc")
+# set(CMAKE_PREFIX_PATH ./libtorch/libtorch/share/cmake/Torch)
+# set(CMAKE_CUDA_ARCHITECTURES 86)
+
 # Check for CUDA availability
 include(CheckLanguage)
 check_language(CUDA)
@@ -16,11 +21,6 @@ else()
   set(CUDA_AVAILABLE FALSE)
   message(STATUS "CUDA support disabled - CUDA compiler not found")
 endif()
-
-# set(CUDACXX "/usr/local/cuda-12.8/bin/nvcc")
-# set(CMAKE_CUDA_COMPILER "/usr/local/cuda-12.8/bin/nvcc")
-# set(CMAKE_PREFIX_PATH /home/oleh/.libs/libtorch/share/cmake/Torch)
-# set(CMAKE_CUDA_ARCHITECTURES 86)
 
 find_package(Torch REQUIRED)
 find_package(Boost 1.70 REQUIRED COMPONENTS mpi serialization)
