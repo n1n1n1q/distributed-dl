@@ -32,8 +32,8 @@ We offer the following functionality implementation for MPI and NCCL backends.
 | barrier    | ✅       | ✅       |
 | isend      | ✅       | ❌       |
 | irecv      | ✅       | ❌       |
-| Debugging  | ❌ | ❌ |
-| High-level interface| ✅ | ❌ |
+| Debugging  | ✅ | ❌ |
+| High-level interface| ✅ | ✅ |
 
 ## License
 ![MIT License](./LICENSE)
