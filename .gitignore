@@ -45,3 +45,6 @@ pytorch_playground/cifar10_train.pt
 build/
 testing/
 boba/
+data/
+.env/
+app/net_state.pt

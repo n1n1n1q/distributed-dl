@@ -25,13 +25,13 @@ public:
 
       uint8_t label = buffer[0];
 
-      if (label == 1 || label == 2 /* || label == 3 || label == 4*/) {
-        labels_.push_back(buffer[0]);
-        // std::cout << labels_.back() << " ";
+      // if (label == 1 || label == 2 /* || label == 3 || label == 4*/) {
+      labels_.push_back(buffer[0]);
+      // std::cout << labels_.back() << " ";
 
-        torch::Tensor image = torch::from_blob(buffer.data() + 1, {3, 32, 32}, torch::kUInt8).clone();
-        images_.push_back(image);
-      }
+      torch::Tensor image = torch::from_blob(buffer.data() + 1, {3, 32, 32}, torch::kUInt8).clone();
+      images_.push_back(image);
+      // }
     }
     std::cout << "Loaded" << labels_.size() << "images" << std::endl;
   }
@@ -180,14 +180,14 @@ int main(int argc, char **argv) {
   torch::manual_seed(0);
 
 
-  ResNet model{400};
+  ResNet model{10};
   model->to(device);
 
   torch::nn::CrossEntropyLoss loss_fn;
   torch::optim::SGD optimizer(model->parameters(), torch::optim::SGDOptions(0.01).momentum(0.9));
 
 
-  constexpr size_t num_epochs = 5;
+  constexpr size_t num_epochs = 10;
   for (size_t epoch = 1; epoch <= num_epochs; ++epoch) {
     model->train();
     size_t num_correct = 0;
@@ -219,6 +219,8 @@ int main(int argc, char **argv) {
         << accuracy << std::endl;
   }
 
+  if (rank != 0)return 0;
+
   std::vector<at::Tensor> grads;
 
   for (auto &param: model->parameters()) {
@@ -226,6 +228,9 @@ int main(int argc, char **argv) {
   }
 
   auto meow = cat(grads); // gradients
+
+  auto params_vec = model->parameters();
+  torch::save(params_vec, "params_resnet.torch");
 
   return 0;
 }
