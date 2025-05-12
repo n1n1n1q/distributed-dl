@@ -154,7 +154,7 @@ TORCH_MODULE(ResNet);
 
 
 int main(int argc, char **argv) {
-  bool is_cuda = false;
+  bool is_cuda = true;
   DistributedTrainer dt(argc, argv, is_cuda);
 
   torch::Device device{torch::kCPU};
