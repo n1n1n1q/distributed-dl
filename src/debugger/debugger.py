@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-mpigdb.py – one-prompt GDB wrapper for MPI ranks
+MPI debugger 
 """
 import argparse, os, shlex, sys, pexpect
 
